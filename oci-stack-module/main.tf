@@ -14,7 +14,6 @@ terraform {
 provider "oci" {
   tenancy_ocid          = var.tenancy_ocid
   user_ocid             = var.user_ocid
-  private_key_path      = var.private_key_path
   private_key           = var.private_key
   fingerprint           = var.fingerprint
   region                = var.region
@@ -29,6 +28,27 @@ locals {
 # Fetch availability domain information for the specified compartment.
 data "oci_identity_availability_domains" "ads" {
   compartment_id = var.tenancy_ocid
+}
+
+# Select the most recent Oracle Linux 9 images available in the configured
+# region. Image OCIDs are regional, so static IDs from another region cannot
+# be used in eu-frankfurt-1.
+data "oci_core_images" "oracle_linux_9_ampere" {
+  compartment_id           = var.tenancy_ocid
+  operating_system         = "Oracle Linux"
+  operating_system_version = "9"
+  shape                    = "VM.Standard.A1.Flex"
+  sort_by                  = "TIMECREATED"
+  sort_order               = "DESC"
+}
+
+data "oci_core_images" "oracle_linux_9_x86_64" {
+  compartment_id           = var.tenancy_ocid
+  operating_system         = "Oracle Linux"
+  operating_system_version = "9"
+  shape                    = "VM.Standard.E2.1.Micro"
+  sort_by                  = "TIMECREATED"
+  sort_order               = "DESC"
 }
 
 # Fetch boot volume information for instances in the availability domain.
@@ -231,7 +251,7 @@ resource "oci_core_instance" "vm_instance_ampere" {
   }
 
   source_details {
-    source_id   = var.vm_image_ocid_ampere
+    source_id   = data.oci_core_images.oracle_linux_9_ampere.images[0].id
     source_type = "image"
   }
 
@@ -272,7 +292,7 @@ resource "oci_core_instance" "vm_instance_x86_64" {
   }
 
   source_details {
-    source_id   = var.vm_image_ocid_x86_64
+    source_id   = data.oci_core_images.oracle_linux_9_x86_64.images[0].id
     source_type = "image"
   }
 
@@ -342,5 +362,3 @@ resource "oci_core_volume_backup_policy_assignment" "backup_policy_assignment" {
     oci_core_instance.vm_instance_ampere
   ]
 }
-
-

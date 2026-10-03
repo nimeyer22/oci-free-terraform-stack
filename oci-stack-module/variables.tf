@@ -8,14 +8,10 @@ variable "user_ocid" {
   type        = string
 }
 
-variable "private_key_path" {
-  description = "The path of the private key"
-  type        = string
-}
-
 variable "private_key" {
   description = "The private key"
   type        = string
+  sensitive   = true
 }
 
 variable "fingerprint" {
@@ -41,16 +37,6 @@ variable "tags" {
 
 variable "vm_name" {
   description = "The name of the VM instances"
-  type        = string
-}
-
-variable "vm_image_ocid_ampere" {
-  description = "The OCID of the Oracle Linux 9 image for Ampere architecture"
-  type        = string
-}
-
-variable "vm_image_ocid_x86_64" {
-  description = "The OCID of the Oracle Linux 9 image for x86_64 architecture"
   type        = string
 }
 
