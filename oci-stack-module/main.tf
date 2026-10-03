@@ -25,6 +25,7 @@ provider "oci" {
 locals {
   a1_cloud_init_template_file = "${path.module}/templates/a1-cloud-init.yaml.tpl"
   e2_cloud_init_template_file = "${path.module}/templates/e2-cloud-init.yaml.tpl"
+  selected_availability_domain = data.oci_identity_availability_domains.ads.availability_domains[var.availability_domain_index].name
 }
 
 # Fetch availability domain information for the specified compartment.
@@ -51,12 +52,6 @@ data "oci_core_images" "oracle_linux_9_x86_64" {
   shape                    = "VM.Standard.E2.1.Micro"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
-}
-
-# Fetch boot volume information for instances in the availability domain.
-data "oci_core_boot_volumes" "oci_stack_boot_volumes" {
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
-  compartment_id      = oci_identity_compartment.oci_stack.id
 }
 
 # Create a new compartment for OCI stack resources.
@@ -228,7 +223,8 @@ resource "oci_core_network_security_group_security_rule" "oci_stack-network-secu
 
 # Define instances for Ampere and x86_64 architectures.
 resource "oci_core_instance" "vm_instance_ampere" {
-  availability_domain                 = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  count                               = var.create_ampere_instance ? 1 : 0
+  availability_domain                 = local.selected_availability_domain
   compartment_id                      = oci_identity_compartment.oci_stack.id
   shape                               = "VM.Standard.A1.Flex"
   display_name                        = join("", [var.vm_name, "a1"])
@@ -273,8 +269,8 @@ resource "oci_core_instance" "vm_instance_ampere" {
 }
 
 resource "oci_core_instance" "vm_instance_x86_64" {
-  count                               = 2
-  availability_domain                 = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  count                               = var.x86_instance_count
+  availability_domain                 = local.selected_availability_domain
   compartment_id                      = oci_identity_compartment.oci_stack.id
   shape                               = "VM.Standard.E2.1.Micro"
   display_name                        = join("", [var.vm_name, "0", count.index + 1])
@@ -315,19 +311,21 @@ resource "oci_core_instance" "vm_instance_x86_64" {
 
 # Define an additional storage volume and attach it to the ampere instance.
 resource "oci_core_volume" "vm_instance_oci_stack_core_volume" {
+  count                = var.create_ampere_instance ? 1 : 0
   compartment_id       = oci_identity_compartment.oci_stack.id
-  availability_domain  = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  availability_domain  = local.selected_availability_domain
   display_name         = join("-", [var.vm_name, "core", "volume"])
   freeform_tags        = var.tags
-  size_in_gbs          = 59
+  size_in_gbs          = 50
   is_auto_tune_enabled = true
   vpus_per_gb          = 0
 }
 
 resource "oci_core_volume_attachment" "extra_volume_attachment" {
+  count                               = var.create_ampere_instance ? 1 : 0
   attachment_type                     = "paravirtualized"
-  instance_id                         = oci_core_instance.vm_instance_ampere.id
-  volume_id                           = oci_core_volume.vm_instance_oci_stack_core_volume.id
+  instance_id                         = oci_core_instance.vm_instance_ampere[0].id
+  volume_id                           = oci_core_volume.vm_instance_oci_stack_core_volume[0].id
   device                              = "/dev/oracleoci/oraclevdb"
   display_name                        = "oci_stack-core-volume-attachment"
   is_pv_encryption_in_transit_enabled = true
@@ -336,7 +334,7 @@ resource "oci_core_volume_attachment" "extra_volume_attachment" {
 
 # Backup Policy
 resource "oci_core_volume_backup_policy" "backup_policy" {
-  count = 3
+  count = var.x86_instance_count + (var.create_ampere_instance ? 1 : 0)
   compartment_id = oci_identity_compartment.oci_stack.id
   display_name = format("Daily %d", count.index)
 
@@ -351,11 +349,11 @@ resource "oci_core_volume_backup_policy" "backup_policy" {
 }
 
 resource "oci_core_volume_backup_policy_assignment" "backup_policy_assignment" {
-  count = 3
+  count = var.x86_instance_count + (var.create_ampere_instance ? 1 : 0)
   asset_id = (
-    count.index < 2 ?
+    count.index < var.x86_instance_count ?
     oci_core_instance.vm_instance_x86_64[count.index].boot_volume_id :
-    oci_core_instance.vm_instance_ampere.boot_volume_id
+    oci_core_instance.vm_instance_ampere[0].boot_volume_id
   )
   policy_id = oci_core_volume_backup_policy.backup_policy[count.index].id
 
