@@ -14,7 +14,9 @@ terraform {
 provider "oci" {
   tenancy_ocid          = var.tenancy_ocid
   user_ocid             = var.user_ocid
-  private_key           = var.private_key
+  # Terraform Cloud accepts multi-line values, but normalizing literal "\\n"
+  # also supports secrets entered with escaped line breaks.
+  private_key           = replace(trimspace(var.private_key), "\\n", "\n")
   fingerprint           = var.fingerprint
   region                = var.region
 }

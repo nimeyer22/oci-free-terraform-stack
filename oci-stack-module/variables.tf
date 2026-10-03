@@ -9,7 +9,7 @@ variable "user_ocid" {
 }
 
 variable "private_key" {
-  description = "The private key"
+  description = "Unencrypted OCI API signing private key in PEM format"
   type        = string
   sensitive   = true
 }
