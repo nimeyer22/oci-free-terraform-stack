@@ -13,6 +13,11 @@ variable "private_key_path" {
   type        = string
 }
 
+variable "private_key" {
+  description = "The private key"
+  type        = string
+}
+
 variable "fingerprint" {
   description = "The fingerprint for the key pair"
   type        = string
